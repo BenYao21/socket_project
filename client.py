@@ -1,38 +1,62 @@
 #!/usr/bin/python
-#client.py
+"""
+client.py
+author: chao yao
+lastest change: 02/12 2022
+"""
 from select import select
 import socket
-from enum import Enum
-
-DISCONNECT_MESSAGE = "!DISCONNECT"
-
-class Requests(Enum): #Requests players may make
-    register = 1
-    query_players = 2
-    start_game = 3
-    query_games = 4
-    end = 5
-    de_register = 6
 
 class Player:
 
     BUFFER = 1024
-    PORT = 6000
+    REMOTE_PORT = 6000
+    SOURCE_PORT1 = 6001
+    SOURCE_PORT2 = 6002
     FORMAT = 'utf-8'
-    SERVER = "192.168.0.123"
-    ADDR = (SERVER, PORT)
+    REMOTE_SERVER = "192.168.0.123"
+    LOCAL_SERVER = socket.gethostbyname(socket.gethostname())
+    ADDR = (REMOTE_SERVER, REMOTE_PORT)
 
     def __init__(self):
         self.client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.client.connect(self.ADDR)
+        self.client.bind((self.LOCAL_SERVER, self.SOURCE_PORT1))
+        self.deal_with_actions()
 
-    def send(self, msg):
-        message = msg.encode(self.FORMAT)
-        self.client.sendto(message, self.ADDR)
-        print(self.client.recvfrom(self.BUFFER).decode(self.FORMAT))
-    def start_game(self, name):
-        self.client.sendto(Requests.start_game, self.ADDR)
-        self.client.sendto(name, self.ADDR)
+    def deal_with_actions(self):
+        while True:
+            req_input = input("Enter your request: ")
+            method = getattr(self, req_input)
+            method()
+    def register(self):
+        userName = input("Enter your user name:")
+        ip_addr = self.LOCAL_SERVER
+        port = self.SOURCE_PORT1
+        args = ("register",userName, str(ip_addr), str(port))
+        msg = "\n".join(args)
+        self.client.sendto(msg.encode(self.FORMAT), self.ADDR)
+        print(self.client.recvfrom(self.BUFFER)[0].decode(self.FORMAT))
+    def query_players(self):
+        msg = "query_players"
+        self.client.sendto(msg.encode(self.FORMAT), self.ADDR)
+        print(self.client.recvfrom(self.BUFFER)[0].decode(self.FORMAT))
+    def start_game(self):
+        msg = "start_game"
+        k = input("Enter number of players you want to play with you(1~3): ")
+        args = (msg, k)
+        data = "\n".join(args)
+        self.client.sendto(data.encode(self.FORMAT), self.ADDR)
+    def query_games(self):
+        msg = "query_games"
+        self.client.sendto(msg.encode(self.FORMAT), self.ADDR)
+        print(self.client.recvfrom(self.BUFFER)[0].decode(self.FORMAT))
+    def end(self):
+        msg = "end"
+        self.client.sendto(msg.encode(self.FORMAT), self.ADDR)
+    def de_register(self):
+        msg = "de_register"
+        self.client.sendto(msg.encode(self.FORMAT), self.ADDR)
+        print(self.client.recvfrom(self.BUFFER)[0].decode(self.FORMAT))
     def shuffle():
         pass
     def deal():
@@ -41,7 +65,3 @@ class Player:
         pass
 
 newPlayer = Player()
-newPlayer.send("Hello, world!")
-input()
-
-newPlayer.send(DISCONNECT_MESSAGE)

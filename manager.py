@@ -3,38 +3,26 @@
 '''
 manager.py
 author: chao yao
-lastest edit: 02/05 2022
+lastest edit: 02/12 2022
 '''
-from http import server
-from ipaddress import ip_address
 import socket
 import threading
 import random
-from sys import exit, flags
-from enum import Enum
-from urllib import request
-users = set()#an easy "database" to store user information
-games = set()#an easy "database" to store game information
-class Requests(Enum): #Requests players may make
-    register = 1
-    query_players = 2
-    start_game = 3
-    query_games = 4
-    end = 5
-    de_register = 6
+import time
+import uuid
 
 class Game: #construct a game object
     players = set()
-    def __init__(self, id):
-        self.id = id
+    def __init__(self):
+        self.id = uuid.uuid4() #uuid4 function will return a id which is 99.99% possiblity not duplicate
     def assign_dealer(self, user):
         user.tag = "dealer"
         user.in_game = True
-    def assign_player(self):
-        for player in users:
-            if player.id is not self.id and player.in_game:
-                self.players.add(player)
-                player.in_game = True
+    def assign_player(self, gamers):
+        for gamer in gamers:
+            self.players.add(gamer)
+            gamer.tag = True
+
 class User: #construct a user object
     id = 0
     tag = "player"
@@ -43,7 +31,13 @@ class User: #construct a user object
         self.name = name
         self.ip = ip
         self.port = port_num
+        self.in_game = False
+    def query_players(self):
+        pass
+'''
+TODO: add multithread support to manager
 
+'''
 class Manager: 
     BUFFER = 1024
     PORT = 6000 #range: (6000, 6499)
@@ -52,71 +46,80 @@ class Manager:
     FORMAT = 'utf-8'
     server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     server.bind(ADDR)#bind server
-    DISCONNECT_MESSAGE = "!DISCONNECT"
+    Requests = {}
+    users = dict()#an easy "database" to store user information
+    games = set()#an easy "database" to store game information
 
     def __init__(self):
-        '''
-        self.server.listen()
-        '''
         print(f"[LISTENING] Server is listening on {self.SERVER}")
+        self.handle_client()
+        #threading.Thread(target = self.handle_client, args= ())
+        #print(f"[ACTIVE CONNECTIONS] {threading.active_count()}")
+        
+        
+    def handle_client(self):
         while True:
+            time.sleep(0.1)
             data, addr = self.server.recvfrom(self.BUFFER)
-            thread = threading.Thread(target = self.handle_client, args= (addr[0], addr[1]))
-            thread.start()
-            print(f"[ACTIVE CONNECTIONS] {threading.active_count() - 1}")
-    
-    def handle_client(self, conn, addr):
-        connected = True
-        while connected: 
-            msg, addr = self.server.recvfrom(self.BUFFER).decode(self.FORMAT)
-            if msg == self.DISCONNECT_MESSAGE:
-                connected = False
-            print(f"[{addr}] {msg}")
-            if msg == Requests.start_game:
-                pass
-            elif msg == Requests.query_players:
-                pass
-            elif msg == Requests.start_game:
-                pass
-            elif msg == Requests.query_games:
-                pass
-            elif msg == Requests.end:
-                pass
-            elif msg == Requests.de_register:
-                pass
-            else:
-                self.server.sendto("Wrong requests".encode(), self.addr)
-
-    def register(self,user, ip_addr, port):
+            msg = data.decode(self.FORMAT).split("\n")
+            method_name = getattr(self, msg[0])
+            method_name(data, addr)
+            
+    def register(self, data, addr):
+        ip_addr = addr[0]
+        port = addr[1]
+        msg = data.decode(self.FORMAT).split("\n")
+        user = msg[1]
         newUser = User(user, ip_addr, port)
-        if(newUser in users):
-            self.server.sendto("FAILURE".encode(), self.addr)
+        if (newUser.ip, newUser.port) in self.users.keys():
+            self.server.sendto("FAILURE! Re-register is not supported".encode(), (ip_addr, port))
         else:
-            users.add(newUser)
-            self.server.sendto("SUCCESS".encode(), self.addr)
-    def query_players(self):
-        self.server.sendto(len(users).to_bytes, self.addr)
-        for user in users:
-            self.server.sendto(user.encode(), self.addr)
-    def start_game(self, user, k):
-        if(not(user in users or k < 1 or k > 3 or k < len(users))):
-            self.server.sendto("FAILURE".encode(), self.addr)
+            self.users[(ip_addr, port)] = newUser
+            self.server.sendto("SUCCESS".encode(), (ip_addr, port))
+    def query_players(self, data, addr):
+        lengthOfUsers = str(len(self.users.keys())) + " players registered"
+        msg = "\n".join((lengthOfUsers, str(self.users)))
+        self.server.sendto(msg.encode(self.FORMAT), addr)
+    '''
+    Multithread support will be added soon. It is not complete now.
+    '''
+    def start_game(self, data, addr):
+        user = data[1]
+        k = data[2]
+        if(not(user in self.users or k < 1 or k > 3 or k < len(self.users))):
+            self.lock.acquire()
+            self.server.sendto("FAILURE! Input number of players is not supported!".encode(), addr)
         else:
-            self.server.sendto("SUCCESS".encode(), self.addr)
-            newGame = Game(user)
+            self.lock.acquire()
+            self.server.sendto("SUCCESS".encode(), addr)
+            newGame = Game(random.randrange(1000, 1999))
             newGame.assign_dealer(user)
+            random.sample(self.users, k)
             newGame.assign_player()
-            for p in users:
-                self.server.sendto(f"player {p.name} registered in game with ID {newGame.id}".encode(), self.addr)   
-    def query_games(self):
-        for game in games:
-            self.server.sendto(f"game with ID {game.id} is running".encode(), self.addr)
-    def end(self, game_id):
-        for game in games:
+            for p in self.users:
+                self.server.sendto(f"player {p.name} registered in game with ID {newGame.id}".encode(), addr)   
+            self.lock.release()
+    def query_games(self, data, addr):
+        lengthOfGames = str(len(self.games)) + " games are running"
+        msg = "\n".join((lengthOfGames, str(self.games)))
+        self.server.sendto(msg.encode(self.FORMAT), addr)
+    '''
+    Multithread support will be added soon. It is not complete now.
+    '''
+    def end(self, data, addr):
+        game_id = data[1]
+        for game in self.games:
             if game.id == game_id:
-                games.remove(game)
-    def de_register(self, user):
-        users.remove(user)
-
+                self.games.remove(game)
+    def de_register(self, data, addr):
+        user_addr = addr
+        user = self.users[user_addr]
+        #print(user_addr)
+        #print(user.in_game)
+        if user.in_game:
+            self.server.sendto("FAILURE! The user is in a game!".encode(self.FORMAT), addr)
+        else:
+            self.server.sendto("SUCCESS!".encode(self.FORMAT), addr)
+            self.users.pop(user_addr)
 print("[STARTING] server is starting...")
 manager = Manager()
