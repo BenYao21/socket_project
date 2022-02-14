@@ -3,7 +3,7 @@
 '''
 manager.py
 author: chao yao
-lastest edit: 02/12 2022
+latest edit: 02/12 2022
 '''
 import socket
 import threading
@@ -56,7 +56,14 @@ class Manager:
         #threading.Thread(target = self.handle_client, args= ())
         #print(f"[ACTIVE CONNECTIONS] {threading.active_count()}")
         
-        
+    '''
+    author: chao yao
+    latest edit: 02/13 2022
+    @Parameters: 
+    @Returns: 
+    This method takes messages received from players(clients) and call 
+    different methods to handle the client's request.
+    ''' 
     def handle_client(self):
         while True:
             time.sleep(0.1)

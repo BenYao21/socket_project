@@ -2,7 +2,7 @@
 """
 client.py
 author: chao yao
-lastest change: 02/12 2022
+latest edit: 02/13 2022
 """
 from select import select
 import socket
@@ -23,6 +23,14 @@ class Player:
         self.client.bind((self.LOCAL_SERVER, self.SOURCE_PORT1))
         self.deal_with_actions()
 
+    '''
+    author: chao yao
+    lastest edit: 02/13 2022
+    @Parameters: 
+    @Returns:
+    This method identify different player requests and call different methods
+    to deal with it.
+    '''
     def deal_with_actions(self):
         while True:
             req_input = input("Enter your request: ")
